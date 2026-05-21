@@ -1,0 +1,9 @@
+name: BridgePlugin
+version: 0.1.0
+main: mc.jazhdo.BridgePlugin
+api-version: 1.12
+depend: [Multiverse-Core]
+commands:
+  bridge:
+    description: Join the Bridge Game
+    usage: /bridge
