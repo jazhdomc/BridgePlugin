@@ -1,6 +1,7 @@
 package mc.jazhdo;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Random;
 
@@ -19,8 +20,8 @@ public class BridgePlugin extends JavaPlugin {
             else {
                 try {
                     java.nio.file.Files.copy(f.toPath(), new File(dest, f.getName()).toPath());
-                } catch (Exception e) {
-                    e.printStackTrace();
+                } catch (IOException e) {
+                    getLogger().warning("Error occurred while copying files: ".concat(e.getMessage()));
                 }
             }
         }
@@ -29,12 +30,11 @@ public class BridgePlugin extends JavaPlugin {
     }
 
     public void deleteFolder(File folder) {
-        if (folder.listFiles() != null) {
-            for (File f : folder.listFiles()) {
-                if (f.isDirectory()) deleteFolder(f);
-                else f.delete();
-            }
-        }
+        File[] fileList = folder.listFiles();
+        if (fileList != null) 
+            for (File file : fileList) 
+                if (file.isDirectory()) deleteFolder(file);
+                else file.delete();
         folder.delete();
     }
 
@@ -42,7 +42,7 @@ public class BridgePlugin extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
         File bridgeFolder = new File(Bukkit.getWorldContainer(), "bridge");
-        List<String> maps = this.getConfig().getStringList("maps");
+        List<String> maps = getConfig().getStringList("maps");
         String map = maps.get(new Random().nextInt(maps.size()));
         File backupFolder = new File(Bukkit.getWorldContainer(), map);
 

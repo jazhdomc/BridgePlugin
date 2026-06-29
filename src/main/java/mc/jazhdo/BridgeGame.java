@@ -1,5 +1,14 @@
 package mc.jazhdo;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
+
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
@@ -18,27 +27,17 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scoreboard.DisplaySlot;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.UUID;
-
 public class BridgeGame {
     public enum State { WAITING, COUNTDOWN, RUNNING, ENDED }
 
     private final BridgePlugin plugin;
     private State state = State.WAITING;
     public int countdownTimer = 10;
-    private int redScore = 0, blueScore = 0;
+    private int redScore = 0, blueScore = 0, waitingTick = 0, gameTimer;
     private BukkitRunnable gameLoop;
-    private Map<UUID, String> teams = new HashMap<>();
+    private final Map<UUID, String> teams = new HashMap<>();
     private org.bukkit.scoreboard.Scoreboard scoreboard;
     private org.bukkit.scoreboard.Objective objective;
-    private int gameTimer;
 
     public BridgeGame(BridgePlugin plugin) {
         this.plugin = plugin;
@@ -55,15 +54,24 @@ public class BridgeGame {
                         if (world.getPlayers().size() >= 2) {
                             setState(State.COUNTDOWN);
                             countdownTimer = 10;
-                        } else
-                            for (Player p : world.getPlayers())
-                                p.spigot().sendMessage(net.md_5.bungee.api.ChatMessageType.ACTION_BAR, net.md_5.bungee.api.chat.TextComponent.fromLegacyText(ChatColor.YELLOW + "Waiting for players... (" + world.getPlayers().size() + "/2+)"));
+                        } else {
+                            String dots[] = {".", "..", "..."};
+                            for (Player p : world.getPlayers()) p.spigot().sendMessage(
+                                net.md_5.bungee.api.ChatMessageType.ACTION_BAR,
+                                net.md_5.bungee.api.chat.TextComponent.fromLegacyText(
+                                    ChatColor.YELLOW + "Waiting for players" + dots[waitingTick] + " (" + world.getPlayers().size() + "/2+)"
+                                )
+                            );
+                            if (waitingTick == 2) waitingTick = 0;
+                            else waitingTick++;
+                        }
                         break;
                     case COUNTDOWN:
                         World bridgeWorld = Bukkit.getWorld("bridge");
 
                         // Check if players choose to leave during the countdown
                         if (bridgeWorld.getPlayers().size() < 2) {
+                            waitingTick = 0;
                             setState(State.WAITING);
                             broadcast(ChatColor.RED + "Not enough players.");
                             return;
@@ -138,8 +146,14 @@ public class BridgeGame {
             List<Player> remaining = Bukkit.getWorld("bridge").getPlayers();
             remaining.remove(player);
             if (!remaining.isEmpty()) endGame((getTeam(remaining.get(0)).equals("red") ? "Red" : "Blue"));
-            else setState(State.WAITING);
-        } else if (state == State.COUNTDOWN && playersAfterQuit < 2) setState(State.WAITING);
+            else {
+                waitingTick = 0;
+                setState(State.WAITING);
+            }
+        } else if (state == State.COUNTDOWN && playersAfterQuit < 2) {
+            waitingTick = 0;
+            setState(State.WAITING);
+        }
         
     }
     
@@ -192,9 +206,11 @@ public class BridgeGame {
 
     private void displayScore(String team, Player player) {
         for (Player p : Bukkit.getWorld("bridge").getPlayers()) 
-            p.sendTitle(ChatColor.RED + String.valueOf(redScore) + ChatColor.WHITE + " - " + ChatColor.BLUE + String.valueOf(blueScore),
-        (team.equals("red") ? ChatColor.RED : ChatColor.BLUE) + player.getName() + " scored!",
-        5, 30, 10);
+            p.sendTitle(
+                ChatColor.RED + String.valueOf(redScore) + ChatColor.WHITE + " - " + ChatColor.BLUE + String.valueOf(blueScore),
+                (team.equals("red") ? ChatColor.RED : ChatColor.BLUE) + player.getName() + " scored!",
+                5, 30, 10
+            );
     }
 
     private void resetWorld() {
@@ -225,19 +241,22 @@ public class BridgeGame {
             p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
         }
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            // Reset values
             redScore = 0;
             blueScore = 0;
             countdownTimer = 10;
             teams.clear();
 
+            // Reset game for all players
             for (Player p : Bukkit.getWorld("bridge").getPlayers()) {
-                p.setGameMode(GameMode.ADVENTURE);
+                p.setGameMode(GameMode.SURVIVAL);
                 p.getInventory().clear();
                 p.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
-                p.teleport(Bukkit.getWorld("world").getSpawnLocation());
+                p.teleport(Bukkit.getWorld(plugin.getConfig().getString("lobby")).getSpawnLocation());
             }
             Bukkit.getWorld("bridge").setPVP(false);
             resetWorld();
+            waitingTick = 0;
             setState(State.WAITING);
         }, 100L);
     }
@@ -245,6 +264,7 @@ public class BridgeGame {
     private void removeCages(Location center) {
         World world = center.getWorld();
         Configuration config = plugin.getConfig();
+
         // For each block in the cube
         for (int x = -config.getInt("cage-size.x-half-length"); x <= config.getInt("cage-size.x-half-length"); x++) {
             for (int y = 0; y <= config.getInt("cage-size.height"); y++) {

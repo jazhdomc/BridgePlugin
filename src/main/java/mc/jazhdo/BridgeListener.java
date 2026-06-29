@@ -1,23 +1,23 @@
 package mc.jazhdo;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.ChatColor;
 import org.bukkit.block.Block;
-import org.bukkit.entity.Player;
 import org.bukkit.entity.Arrow;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
 
-public class BridgeListener implements Listener{
+public class BridgeListener implements Listener {
     private final BridgeGame game;
     private final BridgePlugin plugin;
 
@@ -35,12 +35,12 @@ public class BridgeListener implements Listener{
     public void onPlayerMove(PlayerMoveEvent event) {
         if (event.getFrom().getBlockX() == event.getTo().getBlockX() && event.getFrom().getBlockY() == event.getTo().getBlockY() && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) return;
 
-        Player player = event.getPlayer();
+        // Check world
         Location loc = event.getTo();
-
         if (!loc.getWorld().getName().equals("bridge")) return;
 
         // Simulate void
+        Player player = event.getPlayer();
         if (event.getTo().getY() < plugin.getConfig().getInt("void-y")) {
             player.setHealth(0);
             return;
@@ -68,20 +68,23 @@ public class BridgeListener implements Listener{
                 player.spigot().respawn();
                 game.respawnPlayer(player);
             } else player.teleport(Bukkit.getWorld("bridge").getSpawnLocation());
-        }, 0L);
+        }, 1L);
     }
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
+        // Make sure player is joining the Bridge world
         Player player = event.getPlayer();
-        player.getInventory().clear();
-        if (!player.getWorld().getName().equals("bridge")) {
-            game.countdownTimer = 10;
-            return;
-        }
+        if (!player.getWorld().getName().equals("bridge")) return;
 
-        if (game.getState() == BridgeGame.State.RUNNING) player.sendMessage(ChatColor.RED + "A game is already in progress!");
-        player.teleport(Bukkit.getWorld("world").getSpawnLocation());
+        // Check if a game is currently in progress
+        BridgeGame.State state = game.getState();
+        if (state == BridgeGame.State.RUNNING) player.sendMessage(ChatColor.RED + "A game is already in progress!");
+        else {
+            // Reset countdown if someone joins or just teleport the player
+            if (state == BridgeGame.State.COUNTDOWN) game.countdownTimer = 10;
+            player.teleport(Bukkit.getWorld(plugin.getConfig().getString("lobby")).getSpawnLocation());
+        }
     }
 
     @EventHandler

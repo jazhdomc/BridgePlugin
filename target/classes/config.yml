@@ -54,6 +54,9 @@ portal-y: 91
 # Void y-level (the y-level of the simulated void)
 void-y: 83
 
+# Lobby world
+lobby: world
+
 # Maps to randomly select from
 maps:
   - BridgeMap1
